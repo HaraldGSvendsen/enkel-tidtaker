@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Finish Line</title>
+<style>
+body { font-family: Arial; text-align: center; margin-top: 50px; }
+input { font-size: 40px; width: 90%; max-width: 300px; text-align: center; }
+button { font-size: 30px; width: 80%; max-width: 300px; margin: 10px auto; display: block; }
+ul { list-style: none; padding-left: 0; }
+</style>
+</head>
+<body>
+<h1>Finish Line</h1>
+<input type="tel" id="bib" placeholder="Bib #" autofocus>
+<button onclick="submitBib()">Submit</button>
+<button onclick="undoLast()">Undo Last</button>
+<p id="status"></p>
+
+<h2>Last entries</h2>
+<ul id="lastEntries"></ul>
+
+<script>
+const WEBAPP_URL = "https://script.google.com/macros/s/AKfycbyRmwqUdiBzqAGZ2DQGW5bYvDx0nsLBVB8IugSfKBlupbaGUFZpQWdxbY3pYhGntDCjYQ/exec";
+const audio = new Audio("https://www.soundjay.com/buttons/sounds/button-3.mp3");
+audio.load();
+
+let lastEntries = []; // {bib, time, entryId}
+
+// Submit bib
+function submitBib() {
+  const bibField = document.getElementById("bib");
+  const bib = bibField.value;
+  if (!bib) return;
+
+  const timestamp = new Date().toLocaleTimeString();
+  const entryId = Date.now() + "-" + Math.floor(Math.random()*1000);
+
+  lastEntries.unshift({bib, time: timestamp, entryId});
+  if (lastEntries.length > 5) lastEntries.pop();
+  renderList();
+
+  bibField.value = "";
+  bibField.focus();
+  audio.play();
+  document.getElementById("status").innerText = "Lagrer...";
+
+  fetch(WEBAPP_URL, {
+    method: "POST",
+    body: JSON.stringify({bib: bib, entryId: entryId}),
+    headers: {"Content-Type": "application/json"}
+  })
+  .then(resp => resp.json())
+  .then(data => { document.getElementById("status").innerText = "Lagret!"; })
+  .catch(err => { 
+    document.getElementById("status").innerText = "Feil ved lagring!";
+    console.error(err);
+  });
+}
+
+// Undo last
+function undoLast() {
+  if (lastEntries.length === 0) return;
+  if (!confirm("Undo last entry?")) return;
+
+  const entry = lastEntries.shift();
+  renderList();
+  document.getElementById("status").innerText = "Angrer...";
+
+  fetch(`${WEBAPP_URL}?undo=true&entryId=${entry.entryId}`)
+    .then(resp => resp.json())
+    .then(data => {
+      if(data.status === "ok") document.getElementById("status").innerText = "Siste registrering fjernet.";
+      else document.getElementById("status").innerText = "Undo failed";
+    })
+    .catch(err => { 
+      document.getElementById("status").innerText = "Feil ved angring!";
+      console.error(err);
+    });
+}
+
+// Render last 5 entries
+function renderList() {
+  const list = document.getElementById("lastEntries");
+  list.innerHTML = "";
+  lastEntries.forEach((entry, index) => {
+    const li = document.createElement("li");
+    li.textContent = `${entry.time} – ${entry.bib}`;
+    if (index === 0) li.style.fontWeight = "bold";
+    list.appendChild(li);
+  });
+}
+
+// Enter key submits
+document.getElementById("bib").addEventListener("keypress", function(e){
+  if (e.key === "Enter") submitBib();
+});
+</script>
+</body>
+</html>
