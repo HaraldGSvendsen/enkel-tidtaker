@@ -1,100 +1,285 @@
 <!DOCTYPE html>
 <html>
-<head>
-<meta charset="UTF-8">
-<title>Mål</title>
-<style>
-body { font-family: Arial; text-align: center; margin-top: 50px; }
-input { font-size: 40px; width: 90%; max-width: 300px; text-align: center; }
-button { font-size: 30px; width: 80%; max-width: 300px; margin: 10px auto; display: block; }
-ul { list-style: none; padding-left: 0; }
-</style>
-</head>
-<body>
-<h1>Mål</h1>
-<input type="tel" id="bib" placeholder="NR" autofocus>
-<button onclick="submitBib()">OK</button>
-<button onclick="undoLast()">Angre</button>
-<p id="status"></p>
+  <head>
+    <base target="_top">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
+    <style>
+      :root {
+        --primary: #2c3e50;
+        --success: #27ae60;
+        --danger: #e74c3c;
+        --bg: #f8f9fa;
+      }
+      
+      body {
+        margin: 0;
+        padding: 10px;
+        width: 100vw; /* Force body to viewport width */
+        box-sizing: border-box;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        background-color: var(--bg);
 
-<h2>Sist registrert</h2>
-<ul id="lastEntries"></ul>
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        color: var(--primary);
+      }
+
+      .card {
+        background: white;
+        padding: 25px;
+        border-radius: 15px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        width: 100%;
+        max-width: 350px;
+        box-sizing: border-box;
+      }
+
+      h1 { margin: 0 0 20px 0; font-size: 24px; text-transform: uppercase; letter-spacing: 1px; }
+
+      input[type="number"] {
+        width: 100%;
+        font-size: 60px; /* Massive for readability */
+        padding: 10px 0;
+        border: 2px solid #ddd;
+        border-radius: 10px;
+        text-align: center;
+        margin-bottom: 20px;
+        outline: none;
+        -moz-appearance: textfield;
+      }
+      
+      /* Remove arrows from number input */
+      input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+      .input-row {
+        display: flex;
+        gap: 10px;          /* Space between input and button */
+        align-items: center;
+        width: 100%;
+      }
+
+      #bib {
+        flex: 1;            /* Input takes up available space */
+        min-width: 0;       /* Prevents input from pushing button off screen */
+        font-size: 40px;    /* Slightly smaller than before to fit side-by-side */
+        padding: 15px 5px;
+        margin-bottom: 0;   /* Remove bottom margin since it's now in a row */
+      }
+
+      .btn-submit {
+        flex: 0 0 100px;    /* Button stays a fixed width (adjust as needed) */
+        height: 74px;       /* Matches the height of the large input */
+        padding: 0;
+        font-size: 20px;
+        background-color: #27ae60;
+      }
+
+      /* Optional: Make the "OK" button pulse slightly when it's active */
+      .btn-submit:active {
+        background-color: #1e8449;
+        transform: scale(0.98);
+      }
+
+      .button-group {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 10px;
+        width: 100%;
+      }
+
+      button {
+        border: none;
+        border-radius: 10px;
+        color: white;
+        font-weight: bold;
+        font-size: 18px;
+        padding: 20px;
+        transition: transform 0.1s, opacity 0.2s;
+        cursor: pointer;
+      }
+
+      button:active { transform: scale(0.96); }
+      button:disabled { opacity: 0.5; }
+
+      .btn-submit { background-color: var(--success); }
+      .btn-undo { background-color: var(--danger); font-size: 14px; }
+
+      #status {
+        margin-top: 15px;
+        height: 20px;
+        font-size: 14px;
+        font-weight: bold;
+      }
+
+      .list-container {
+        width: 100%;
+        max-width: 350px;
+        margin-top: 30px;
+        text-align: left;
+      }
+
+      .list-container h2 { font-size: 16px; color: #7f8c8d; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
+
+      ul { list-style: none; padding: 0; margin: 0; }
+
+
+      /* Highlight the very last entry */
+      li:first-child { border-left: 5px solid var(--success); background-color: #f0fff4; }
+
+      li {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: white;
+        margin-bottom: 8px;
+        padding: 10px 15px;
+        border-radius: 10px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      }
+
+      .entry-info {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .bib-number {
+        font-weight: 800;
+        font-size: 1.2em;
+      }
+
+      .entry-time {
+        color: #95a5a6;
+        font-size: 0.8em;
+      }
+
+      .btn-inline-undo {
+        background-color: #fceaea;
+        color: #e74c3c;
+        border: 1px solid #e74c3c;
+        padding: 8px 12px;
+        font-size: 12px;
+        border-radius: 6px;
+        font-weight: bold;
+      }
+
+      .btn-inline-undo:active {
+        background-color: #e74c3c;
+        color: white;
+      }    
+    </style>
+  </head>
+  <body>
+
+    <div class="card">
+      <h1>Målgang</h1>
+      <form action="javascript:void(0);" onsubmit="submit()">
+        <input type="number" id="bib" inputmode="numeric" pattern="[0-9]*" placeholder="NR" autofocus>
+        <button type="submit" class="btn-submit" id="submitBtn" style="width:100%">REGISTRER</button>
+      </form>
+      <div id="status">Klar</div>      
+    </div>
+
+    <div class="list-container">
+      <h2>SISTE PASSERINGER</h2>
+      <ul id="lastEntries"></ul>
+    </div>
 
 <script>
-const WEBAPP_URL = "https://script.google.com/macros/s/AKfycbyRmwqUdiBzqAGZ2DQGW5bYvDx0nsLBVB8IugSfKBlupbaGUFZpQWdxbY3pYhGntDCjYQ/exec";
-const audio = new Audio("https://www.soundjay.com/buttons/sounds/button-3.mp3");
-audio.load();
+  const audio = new Audio("https://www.soundjay.com/buttons/sounds/button-3.mp3");
+  let lastEntries = [];
 
-let lastEntries = []; // {bib, time, entryId}
+  function submit() {
+    const bibField = document.getElementById("bib");
+    const bib = bibField.value;
+    if (!bib) return;
 
-// Submit bib
-function submitBib() {
-  const bibField = document.getElementById("bib");
-  const bib = bibField.value;
-  if (!bib) return;
+    // Re-focus immediately so the keyboard stays up on mobile
+    bibField.focus(); 
 
-  const timestamp = new Date().toLocaleTimeString();
-  const entryId = Date.now() + "-" + Math.floor(Math.random()*1000);
+    const btn = document.getElementById("submitBtn");
+    const bib = bibField.value;
+    if (!bib) return;
 
-  lastEntries.unshift({bib, time: timestamp, entryId});
-  if (lastEntries.length > 5) lastEntries.pop();
-  renderList();
+    btn.disabled = true;
+    const timestamp = new Date().toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const entryId = Date.now() + "-" + Math.floor(Math.random()*1000);
 
-  bibField.value = "";
-  bibField.focus();
-  audio.play();
-  document.getElementById("status").innerText = "Lagrer...";
+    lastEntries.unshift({bib, time: timestamp, id: entryId});
+    if (lastEntries.length > 5) lastEntries.pop();
+    renderList();
 
-  fetch(WEBAPP_URL, {
-    method: "POST",
-    body: JSON.stringify({bib: bib, entryId: entryId}),
-    headers: {"Content-Type": "application/json"}
-  })
-  .then(resp => resp.json())
-  .then(data => { document.getElementById("status").innerText = "Lagret!"; })
-  .catch(err => { 
-    document.getElementById("status").innerText = "Feil ved lagring!";
-    console.error(err);
-  });
-}
+    bibField.value = "";
+    bibField.focus();
+    audio.play().catch(()=>{});
+    
+    const status = document.getElementById("status");
+    status.innerText = "⏳ Lagrer...";
+    status.style.color = "#f39c12";
 
-// Undo last
-function undoLast() {
-  if (lastEntries.length === 0) return;
-  if (!confirm("Undo last entry?")) return;
+    google.script.run
+      .withSuccessHandler(() => {
+        status.innerText = "✅ Lagret: " + bib;
+        status.style.color = "#27ae60";
+        btn.disabled = false;
+      })
+      .withFailureHandler(() => {
+        status.innerText = "❌ FEIL! Prøv igjen.";
+        status.style.color = "#e74c3c";
+        btn.disabled = false;
+      })
+      .submitBibWithId(bib, entryId);
+  }
 
-  const entry = lastEntries.shift();
-  renderList();
-  document.getElementById("status").innerText = "Angrer...";
+  function undoLast() {
+    if (lastEntries.length === 0 || !confirm("Angre siste?")) return;
+    const entry = lastEntries.shift();
+    renderList();
+    document.getElementById("status").innerText = "Sletter...";
+    google.script.run.undoLastEntryById(entry.id);
+  }
 
-  fetch(`${WEBAPP_URL}?undo=true&entryId=${entry.entryId}`)
-    .then(resp => resp.json())
-    .then(data => {
-      if(data.status === "ok") document.getElementById("status").innerText = "Siste registrering fjernet.";
-      else document.getElementById("status").innerText = "Undo failed";
-    })
-    .catch(err => { 
-      document.getElementById("status").innerText = "Feil ved angring!";
-      console.error(err);
+  function renderList() {
+    const list = document.getElementById("lastEntries");
+    list.innerHTML = "";
+
+    lastEntries.forEach((entry, index) => {
+      const li = document.createElement("li");
+      
+      // Create a container for the Bib and Time
+      li.innerHTML = `
+        <div class="entry-info">
+          <span class="bib-number">#${entry.bib}</span>
+          <span class="entry-time">${entry.time}</span>
+        </div>
+        <button class="btn-inline-undo" onclick="deleteSpecificEntry('${entry.id}', ${index})">ANGRE</button>
+      `;
+      
+      list.appendChild(li);
     });
-}
+  }
 
-// Render last 5 entries
-function renderList() {
-  const list = document.getElementById("lastEntries");
-  list.innerHTML = "";
-  lastEntries.forEach((entry, index) => {
-    const li = document.createElement("li");
-    li.textContent = `${entry.time} – ${entry.bib}`;
-    if (index === 0) li.style.fontWeight = "bold";
-    list.appendChild(li);
+  function deleteSpecificEntry(id, index) {
+    if (!confirm("Sikker?")) return;
+
+    // 1. Remove from the local UI list immediately
+    lastEntries.splice(index, 1);
+    renderList();
+
+    document.getElementById("status").innerText = "Sletter...";
+
+    // 2. Tell the server to delete it from the sheet
+    google.script.run
+      .withSuccessHandler(() => {
+        document.getElementById("status").innerText = "Slettet.";
+      })
+      .undoLastEntryById(id);
+  }
+
+  document.getElementById("bib").addEventListener("keypress", (e) => {
+    if (e.key === "Enter") submit();
   });
-}
-
-// Enter key submits
-document.getElementById("bib").addEventListener("keypress", function(e){
-  if (e.key === "Enter") submitBib();
-});
 </script>
 </body>
 </html>
+
