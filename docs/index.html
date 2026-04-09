@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Finish Line</title>
+<title>Mål</title>
 <style>
 body { font-family: Arial; text-align: center; margin-top: 50px; }
 input { font-size: 40px; width: 90%; max-width: 300px; text-align: center; }
@@ -11,13 +11,13 @@ ul { list-style: none; padding-left: 0; }
 </style>
 </head>
 <body>
-<h1>Finish Line</h1>
-<input type="tel" id="bib" placeholder="Bib #" autofocus>
-<button onclick="submitBib()">Submit</button>
-<button onclick="undoLast()">Undo Last</button>
+<h1>Mål</h1>
+<input type="tel" id="bib" placeholder="NR" autofocus>
+<button onclick="submitBib()">OK</button>
+<button onclick="undoLast()">Angre</button>
 <p id="status"></p>
 
-<h2>Last entries</h2>
+<h2>Sist registrert</h2>
 <ul id="lastEntries"></ul>
 
 <script>
