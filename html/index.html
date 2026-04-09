@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <style>
+      body {
+        font-family: Arial;
+        text-align: center;
+        margin-top: 50px;
+      }
+      input {
+        font-size: 40px;
+        width: 200px;
+        text-align: center;
+      }
+      button {
+        font-size: 30px;
+        padding: 10px 30px;
+        margin-top: 20px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Mål</h1>
+    <input type="number" id="bib" placeholder="NR" autofocus>
+    <br>
+    <button onclick="submit()">OK</button>
+    <button onclick="undoLast()">Angre siste</button>
+
+    <h2>Sist registrert</h2>
+    <ul id="lastEntries"></ul>
+
+    <p id="status"></p>
+
+<script>
+  const audio = new Audio("https://www.soundjay.com/buttons/sounds/button-3.mp3");
+  audio.load();
+
+  let lastEntries = [];
+
+  function submit() {
+    const bibField = document.getElementById("bib");
+    const bib = bibField.value;
+    if (!bib) return;
+
+    const timestamp = new Date().toLocaleTimeString();
+    const entryId = Date.now() + "-" + Math.floor(Math.random()*1000);
+
+    lastEntries.unshift({bib, time: timestamp, id: entryId});
+    if (lastEntries.length > 5) lastEntries.pop();
+    renderList();
+
+    bibField.value = "";
+    bibField.focus();
+    audio.play();
+    document.getElementById("status").innerText = "Lagrer...";
+
+    // ✅ Send to server in background
+    google.script.run
+      .withSuccessHandler(() => {
+        document.getElementById("status").innerText = "Lagret!";
+      })
+      .submitBibWithId(bib,entryId);
+  }
+
+  function undoLast() {
+    if (lastEntries.length === 0) return;
+
+    if (!confirm("Angre siste?")) return;
+
+    const entry = lastEntries.shift();
+    renderList();
+    document.getElementById("status").innerText = "Angrer...";
+
+    google.script.run
+      .withSuccessHandler(() => {
+        document.getElementById("status").innerText = "Siste registrering fjernet.";
+      })
+      .undoLastEntryById(entry.id);
+  }
+
+  function renderList() {
+    const list = document.getElementById("lastEntries");
+    list.innerHTML = "";
+    lastEntries.forEach((entry, index) => {
+      const li = document.createElement("li");
+      li.textContent = `${entry.time} – Bib ${entry.bib}`;
+      if (index === 0) li.style.fontWeight = "bold";
+      list.appendChild(li);
+    });
+  }
+
+  function renderList() {
+    const list = document.getElementById("lastEntries");
+    list.innerHTML = "";
+
+    lastEntries.forEach((entry,index) => {
+      const li = document.createElement("li");
+      li.textContent = `${entry.time} – ${entry.bib}`;
+      if (index === 0) {
+        li.style.fontWeight = "bold";
+      }
+      list.appendChild(li);
+    });
+  }
+
+  document.getElementById("bib").addEventListener("keypress", function(e) {
+    if (e.key === "Enter") {
+      submit();
+    }
+  });
+</script>  </body>
+</html>
