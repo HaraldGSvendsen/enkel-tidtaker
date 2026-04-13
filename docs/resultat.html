@@ -1,17 +1,67 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <!-- CRITICAL: This line makes the page scale correctly on phones -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    
     <title>Terrengløp - resultat</title>
-    <!-- Forces a full reload every 15 seconds -->
+    
+    <!-- Auto-refresh every 15 seconds -->
     <meta http-equiv="refresh" content="15">
+    
     <style>
-        body { margin: 0; padding: 0; background: #f0f0f0; }
-        iframe { width: 100%; height: 100vh; border: none; }
+        /* Reset margins and padding */
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+            background-color: #f4f4f4; /* Light gray background */
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        /* Container to hold the iframe */
+        .container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            overflow: hidden; /* Prevents double scrollbars */
+        }
+
+        /* The iframe styling */
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: block;
+        }
+
+        /* Optional: Loading indicator */
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #666;
+            font-size: 14px;
+            z-index: 10;
+        }
     </style>
 </head>
 <body>
-    <!-- Embeds your published sheet -->
-    <iframe src="https://docs.google.com/spreadsheets/d/e/2PACX-1vSdW9jZs6o0aRsi-YDSVqONeEouwYqFTkx3zWcnc_3f3ivc4Zs5zhiwkwIFRTDRXmGFWMVNHzvK5OvR/pubhtml?gid=1418244288&single=true" 
-    title="Terrengløp-resultat"></iframe>
+
+    <div class="container">
+        <!-- Optional loading text (hidden once iframe loads) -->
+        <div class="loading">Loading results...</div>
+        
+        <!-- REPLACE THE LINK BELOW WITH YOUR PUBLISHED SHEET LINK -->
+        <iframe 
+            src="https://docs.google.com/spreadsheets/d/e/2PACX-1vSdW9jZs6o0aRsi-YDSVqONeEouwYqFTkx3zWcnc_3f3ivc4Zs5zhiwkwIFRTDRXmGFWMVNHzvK5OvR/pubhtml?gid=1418244288&single=true"
+            title="Terrengløp-resultat"
+            onload="document.querySelector('.loading').style.display='none';"
+        ></iframe>
+    </div>
+
 </body>
 </html>
