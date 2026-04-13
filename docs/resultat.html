@@ -1,67 +1,147 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <!-- CRITICAL: This line makes the page scale correctly on phones -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    
-    <title>Terrengløp - resultat</title>
-    
-    <!-- Auto-refresh every 15 seconds -->
-    <meta http-equiv="refresh" content="15">
-    
-    <style>
-        /* Reset margins and padding */
-        body, html {
-            margin: 0;
-            padding: 0;
-            height: 100%;
-            width: 100%;
-            background-color: #f4f4f4; /* Light gray background */
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        }
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tidtaker - resultat</title>
 
-        /* Container to hold the iframe */
-        .container {
-            position: relative;
-            width: 100%;
-            height: 100%;
-            overflow: hidden; /* Prevents double scrollbars */
-        }
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      margin: 0;
+      padding: 10px;
+      background: #f4f4f4;
+    }
 
-        /* The iframe styling */
-        iframe {
-            width: 100%;
-            height: 100%;
-            border: none;
-            display: block;
-        }
+    h2 {
+      text-align: center;
+    }
 
-        /* Optional: Loading indicator */
-        .loading {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            color: #666;
-            font-size: 14px;
-            z-index: 10;
-        }
-    </style>
+    .track {
+      margin-bottom: 20px;
+      background: white;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+
+    .track h3 {
+      margin: 0;
+      padding: 10px;
+      background: #007bff;
+      color: white;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    td, th {
+      padding: 8px;
+      border-bottom: 1px solid #eee;
+      font-size: 14px;
+    }
+
+    th {
+      text-align: left;
+      background: #fafafa;
+    }
+
+    .rank {
+      font-weight: bold;
+    }
+
+    .leader {
+      background: #e6f4ff;
+    }
+
+    .updated {
+      text-align: center;
+      font-size: 12px;
+      color: #666;
+      margin-top: 10px;
+    }
+  </style>
 </head>
+
 <body>
 
-    <div class="container">
-        <!-- Optional loading text (hidden once iframe loads) -->
-        <div class="loading">Loading results...</div>
-        
-        <!-- REPLACE THE LINK BELOW WITH YOUR PUBLISHED SHEET LINK -->
-        <iframe 
-            src="https://docs.google.com/spreadsheets/d/e/2PACX-1vSdW9jZs6o0aRsi-YDSVqONeEouwYqFTkx3zWcnc_3f3ivc4Zs5zhiwkwIFRTDRXmGFWMVNHzvK5OvR/pubhtml?gid=1418244288&single=true"
-            title="Terrengløp-resultat"
-            onload="document.querySelector('.loading').style.display='none';"
-        ></iframe>
-    </div>
+<h2>Resultater</h2>
+<div id="app">Laster...</div>
+<div class="updated" id="updated"></div>
+
+<script>
+const API_URL = "https://script.google.com/macros/s/AKfycbwu56adqkRakxdeAUIEQyBbGBOezmU0EmwBWkVOYSHap4PP80L8879GuT0DvvZKxvEFJA/exec?action=results";
+
+async function load() {
+  try {
+    const res = await fetch(API_URL);
+    const data = await res.json();
+
+    render(data);
+  } catch (e) {
+    document.getElementById("app").innerHTML = "Feil ved lasting";
+    console.error(e);
+  }
+}
+
+function formatTime(iso) {
+  const d = new Date(iso);
+  return d.toLocaleTimeString('no-NO', { hour12: false });
+}
+
+function formatDuration(ms) {
+  const total = Math.floor(ms / 1000);
+  const h = String(Math.floor(total / 3600)).padStart(2, '0');
+  const m = String(Math.floor((total % 3600) / 60)).padStart(2, '0');
+  const s = String(total % 60).padStart(2, '0');
+  return `${h}:${m}:${s}`;
+}
+
+function render(data) {
+  if (!data.tracks || data.tracks.length === 0) {
+    document.getElementById("app").innerHTML = "Ingen resultater ennå";
+    return;
+  }
+
+  let html = "";
+
+  data.tracks.forEach(track => {
+    html += `<div class="track">`;
+    html += `<h3>${track.track}</h3>`;
+    html += `<table>`;
+    html += `
+      <tr>
+        <th>#</th>
+        <th>Startnr</th>
+        <th>Navn</th>
+        <th>Tid</th>
+      </tr>
+    `;
+
+    track.runners.forEach(r => {
+      html += `
+        <tr class="${r.rank === 1 ? 'leader' : ''}">
+          <td class="rank">${r.rank}</td>
+          <td>${r.bib}</td>
+          <td>${r.name}</td>
+          <td>${formatDuration(r.durationMs)}</td>
+        </tr>
+      `;
+    });
+
+    html += `</table></div>`;
+  });
+
+  document.getElementById("app").innerHTML = html;
+  document.getElementById("updated").innerText =
+    "Oppdatert: " + formatTime(data.updated);
+}
+
+// Auto refresh
+setInterval(load, 10000);
+load();
+</script>
 
 </body>
 </html>
