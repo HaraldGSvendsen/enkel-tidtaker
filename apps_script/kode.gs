@@ -130,28 +130,29 @@ function getResultsData() {
 
   // Group per track
   const trackGroups = {};
-
   for (const [bib, info] of Object.entries(bibMap)) {
-    if (!finishMap[bib]) continue;
+    //if (!finishMap[bib]) continue;  // don't include unfinished participants
+    
+    const tId = info.trackId;
+    const start = trackStartMap[tId];
+    const finish = finishMap[bib] || null;
 
-    const start = trackStartMap[info.trackId];
-    const finish = finishMap[bib];
-
-    if (!start || !finish) continue;
-
-    const durationMs = finish - start;
-
-    if (durationMs < 0) continue;
-
-    if (!trackGroups[info.trackId]) {
-      trackGroups[info.trackId] = [];
+    if (!trackGroups[tId]) {
+      trackGroups[tId] = [];
     }
 
-    trackGroups[info.trackId].push({
+    // Only compute duration if both exist
+    let durationMs = null;
+
+    if (start && finish) {
+      durationMs = finish - start;
+    }
+
+    trackGroups[tId].push({
       bib: Number(bib),
       name: info.name,
-      startTime: start.toISOString(),
-      finishTime: finish.toISOString(),
+      startTime: start ? start.toISOString() : null,
+      finishTime: finish ? finish.toISOString() : null,
       durationMs: durationMs
     });
   }
@@ -167,6 +168,11 @@ function getResultsData() {
     const runners = trackGroups[trackId];
     // 3. Sort runners by time or bib number
     // runners.sort((a, b) => a.durationMs - b.durationMs);
+    //runners.sort((a, b) => {
+    //  if (a.durationMs == null) return 1;
+    //  if (b.durationMs == null) return -1;
+    //  return a.durationMs - b.durationMs;
+    //});
     runners.sort((a, b) => a.bib - b.bib);
     // 4. Add ranking
     const sortedRunners = [];
