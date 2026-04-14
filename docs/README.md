@@ -18,7 +18,9 @@ TODO:
 - Auto save admin participants
 - Add admin page warning on same bib registered more than once
 - Add finish line warning if bib registered more than once
-- Results: show all participants also if they don't have a finish time (yet)
+- DONE - Results: show all participants also if they don't have a finish time (yet)
+- Add link from registration to results - and from results to registration
+- Implement hide name logic
 
 
 NOTE:  
@@ -26,4 +28,3 @@ NOTE:
   - webapp_finish.html (renamed finish.html)
   - webapp_admin.html (renamed admin.html)
   - kode.gs
-  
