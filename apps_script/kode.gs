@@ -23,12 +23,20 @@ function doGet(e) {
       .createTextOutput(JSON.stringify(data))
       .setMimeType(ContentService.MimeType.JSON);
   }
-  else {
-    return ContentService
-      .createTextOutput("OK");
+  else if (page === 'admin') {
+    return HtmlService.createHtmlOutputFromFile('admin')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
   }
+  // Default fallback (ALSO JSON)
+  return ContentService
+      .createTextOutput(JSON.stringify({
+        status: "error",
+        message: "Invalid endpoint"
+      }))
+      .setMimeType(ContentService.MimeType.JSON);
 }
 
+// Crosses finish line
 function submitBibWithId(bib, entryId) {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(FINISHES_TAB);
   sheet.appendRow([new Date(), bib, entryId]);
@@ -51,6 +59,7 @@ function undoLastEntryById(entryId) {
   return false;
 }
 
+
 // For getting track names (1 runde, 2 runder,...)
 function getFirstTwoWords(text) {
   var words = text.trim().split(/\s+/);
@@ -69,10 +78,7 @@ function getResultsDataCached() {
 
   // Not cached → compute
   const data = getResultsData();
-
-  // Store for 10 seconds
-  cache.put(cacheKey, JSON.stringify(data), 10);
-
+  cache.put(cacheKey, JSON.stringify(data), 10);  // Store for 10 seconds
   return data;
 }
 
@@ -102,16 +108,16 @@ function getResultsData() {
   // Bib -> {name, trackId}
   const bibMap = {};
   for (let i = 1; i < partData.length; i++) {
-    const bib = partData[i][3];
-    const name = partData[i][2];
-    const trackId = getFirstTwoWords(partData[i][1]);
+    const bib = partData[i][4];
+    const name = partData[i][3];
+    const trackId = getFirstTwoWords(partData[i][2]);
 
     if (bib) {
       bibMap[bib] = { name, trackId };
     }
   }
 
-  // Bib -> finish time (FIRST finish wins)
+  // Bib -> finish time
   const finishMap = {};
   for (let i = 1; i < finishData.length; i++) {
     const time = finishData[i][0];
@@ -157,30 +163,25 @@ function getResultsData() {
   const sortedTrackIds = Object.keys(trackGroups).sort();
 
   // 2. Process each track
-  for (const trackId of sortedTrackIds) {
-    
+  for (const trackId of sortedTrackIds) {   
     const runners = trackGroups[trackId];
-
     // 3. Sort runners by time or bib number
     // runners.sort((a, b) => a.durationMs - b.durationMs);
     runners.sort((a, b) => a.bib - b.bib);
-
     // 4. Add ranking
     const sortedRunners = [];
     for (let i = 0; i < runners.length; i++) {
       sortedRunners.push({
-        rank: i + 1,
+        rank: "", //i + 1,
         ...runners[i]
       });
     }
-
     // 5. Add track to result
     tracks.push({
       track: trackId,
       runners: sortedRunners
     });
   }
-
   // 6. Return final object
   return {
     updated: new Date().toISOString(),
@@ -188,177 +189,65 @@ function getResultsData() {
   };
 }
 
+// generate results tab in the spreadsheet document
+function generateTrackResults() {
+  const data = getResultsDataCached();
 
-function getResultsDataArray() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  
-  // Get sheets
-  const sheetPart = ss.getSheetByName(PARTICIPANTS_TAB);
-  const sheetTracks = ss.getSheetByName(TRACKS_TAB);
-  const sheetFin = ss.getSheetByName(FINISHES_TAB);
-  
-  if (!sheetPart || !sheetTracks || !sheetFin) {
-    Logger.log("Error: Missing required tabs.");
+  if (!data || !data.tracks) {
+    Logger.log("No data to write");
     return;
   }
 
-  Logger.log("Updating results tab.");
+  const outputRows = [];
 
-  // 1. Load Data
-  const partData = sheetPart.getDataRange().getValues();
-  const trackData = sheetTracks.getDataRange().getValues();
-  const finishData = sheetFin.getDataRange().getValues();
+  // Header
+  outputRows.push(["Startnr", "Navn", "Starttid", "Måltid", "Tid"]);
 
-  // 2. Build Lookup Maps
-  // Map: TrackID -> StartTime
-  const trackStartMap = {};
-  for (let i = 1; i < trackData.length; i++) {
-    const tId = trackData[i][0];
-    const tStart = trackData[i][1];
-    if (tId) trackStartMap[tId] = tStart;
-  }
+  for (const track of data.tracks) {
 
-  // Map: Bib -> {Name, TrackID}
-  const bibMap = {};
-  for (let i = 1; i < partData.length; i++) {
-    // timestamp, løype, navn, startnr, skjul
-    const bib = partData[i][3];
-    const name = partData[i][2];
-    const tId = getFirstTwoWords(partData[i][1]);
-    if (bib) bibMap[bib] = { name: name, trackId: tId };
-  }
+    // Track header row
+    outputRows.push([track.track, "", "", "", ""]);
 
-  // Map: Bib -> FinishTime
-  const finishMap = {};
-  for (let i = 1; i < finishData.length; i++) {
-    const fTime = finishData[i][0];
-    const bib = finishData[i][1];
-    if (bib && fTime) finishMap[bib] = fTime;
-  }
+    for (const runner of track.runners) {
 
-  // 3. Group by Track
-  const trackGroups = {};
-  
-  // Iterate through all participants who have finished
-  for (const [bib, info] of Object.entries(bibMap)) {
-    if (finishMap[bib]) {
-      const tId = info.trackId;
-      if (!trackGroups[tId]) {
-        trackGroups[tId] = [];
-      }
-      
-      //const startTime = trackStartMap[tId];
-      //const finishTime = finishMap[bib];
-      const startTimeRaw = trackStartMap[tId];
-      const finishTimeRaw = finishMap[bib];
+      const start = new Date(runner.startTime);
+      const finish = new Date(runner.finishTime);
 
-      // 1. Normalize to Date Objects
-      const startDate = new Date(startTimeRaw);
-      const finishDate = new Date(finishTimeRaw);      
+      const durationMs = runner.durationMs;
 
-      // 2. Validate
-      if (isNaN(startDate.getTime()) || isNaN(finishDate.getTime())) {
-        Logger.log("Invalid Date detected for Bib " + bib + ". Start: " + startTimeRaw + ", Finish: " + finishTimeRaw);
-        // Handle error (skip or mark as error)
-        continue; 
-      }
-
-      // 3. Calculate Duration (in milliseconds)
-      const durationMs = finishDate.getTime() - startDate.getTime();
-
-      // 4. Convert to Days (Google Sheets stores dates as days)
-      // 1 day = 24 * 60 * 60 * 1000 ms
-      const durationDays = durationMs / (24 * 60 * 60 * 1000);
-
-      // Now use 'durationDays' for sorting and formatting
-      trackGroups[tId].push({
-        bib: bib,
-        name: info.name,
-        startTime: startDate, // Store as Date object for consistency
-        finishTime: finishDate,
-        duration: durationDays, // Store as number (fraction of a day)
-      });
-    }
-  }
-
-  Logger.log("trackGroups: "+JSON.stringify(trackGroups));
-
-  // 4. Prepare Output Rows
-  let outputRows = [];
-  
-  const header = ["Startnr", "Navn", "Starttid", "Måltid", "Tid"];
-  outputRows.push(header);
-
-  // Sort Track IDs alphabetically or numerically for consistent order
-  const sortedTrackIds = Object.keys(trackGroups).sort();
-
-  sortedTrackIds.forEach(tId => {
-    const runners = trackGroups[tId];
-    
-    // Sort runners by duration (ascending)
-    //runners.sort((a, b) => a.duration - b.duration);
-    runners.sort((a, b) => a.bib - b.bib);
-
-    // Add a separator row (optional, but looks nice)
-    // We'll just add a bold header row for the track
-    //outputRows.push(["", tId.toUpperCase(), "", "", "", "", ""]); // Empty cells except Track ID
-    outputRows.push([tId.toUpperCase(), "", "", "", ""]); // Empty cells except the first
-    
-    // Add runners
-    runners.forEach((r, index) => {
       outputRows.push([
-        r.bib,
-        r.name,
-        r.startTime,
-        r.finishTime,
-        r.duration
+        runner.bib,
+        runner.name,
+        start,
+        finish,
+        durationMs / (24 * 60 * 60 * 1000) // Sheets duration format
       ]);
-    });
-    
-    // Add a blank row after each track for readability
+    }
+
+    // spacer row
     outputRows.push(["", "", "", "", ""]);
-  });
-  Logger.log("Returning data with length: " + outputRows.length);
-  return outputRows;
-}
+  }
 
-
-// Write updated results to results tab in spreadsheet
-function generateTrackResults() {
-
-  //TODO: Use the JSON data instead of duplicating code
-  outputRows = getResultsDataArray();
-  Logger.log(outputRows);
-
-  // 5. Write to Results Tab
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-
   let sheetRes = ss.getSheetByName(RESULTS_TAB_NAME);
+
   if (!sheetRes) {
     sheetRes = ss.insertSheet(RESULTS_TAB_NAME);
   } else {
     sheetRes.clearContents();
   }
 
-  if (outputRows.length > 0) {
-    sheetRes.getRange(1, 1, outputRows.length, outputRows[0].length).setValues(outputRows);
-    
-    // Formatting
-    sheetRes.getRange(1, 1, 1, 5).setFontWeight("bold").setBackground("#f3f3f3"); // Header
-    sheetRes.getRange(2, 2, outputRows.length, 1).setFontWeight("bold"); // Track IDs bold
+  sheetRes.getRange(1, 1, outputRows.length, outputRows[0].length)
+    .setValues(outputRows);
 
-    // Apply date format to Start Time column (Column 5) and to Finish time (column 6)
-    var timeFormat = "HH:mm:ss"; 
-    sheetRes.getRange(2, 3, outputRows.length, 1).setNumberFormat(timeFormat);
-    sheetRes.getRange(2, 4, outputRows.length, 1).setNumberFormat(timeFormat);
-    sheetRes.getRange(2, 5, outputRows.length, 1).setNumberFormat(timeFormat);
+  // Formatting
+  sheetRes.getRange(1, 1, 1, 5)
+    .setFontWeight("bold")
+    .setBackground("#f3f3f3");
 
-    // Auto-resize columns
-    sheetRes.autoResizeColumns(1, 5);
-    
-    // Freeze header row
-    sheetRes.setFrozenRows(1);
-  }
+  sheetRes.setFrozenRows(1);
+  sheetRes.autoResizeColumns(1, 5);
+  sheetRes.getRange(2, 3, outputRows.length, 3).setNumberFormat("HH:mm:ss");
 }
 
 // Trigger on edit in Finishes tab
@@ -369,3 +258,112 @@ function onEditParticipants(e) {
     generateTrackResults();
   }
 }
+
+// Trigger on google form submission (new or edited participant)
+function onFormSubmit(e) {
+  const sheet = e.range.getSheet();
+  const row = e.range.getRow();
+
+  const existingId = sheet.getRange(row, 1).getValue();
+
+  // Only set ID if empty
+  if (!existingId) {
+    const id = Utilities.getUuid();
+    sheet.getRange(row, 1).setValue(id);
+  }
+}
+
+// Admin function
+function getParticipants() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(PARTICIPANTS_TAB);
+  const data = sheet.getDataRange().getValues();
+  const result = [];
+
+  for (let i = 1; i < data.length; i++) {
+    result.push({
+      id: data[i][0],
+      track: getFirstTwoWords(data[i][2]),
+      name: data[i][3],
+      bib: data[i][4]
+    });
+  }
+  // sort by bib (numeric if possible)
+  result.sort((a, b) => Number(a.bib) - Number(b.bib));
+  return result;
+}
+
+
+function updateParticipant(id, name, bib, track) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(PARTICIPANTS_TAB);
+  const data = sheet.getDataRange().getValues();
+
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === id) {
+      const row = i + 1;
+
+      sheet.getRange(row, 3).setValue(track); // C
+      sheet.getRange(row, 4).setValue(name);  // D
+      sheet.getRange(row, 5).setValue(bib);   // E
+
+      return;
+    }
+  }
+}
+
+function deleteParticipant(id) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(PARTICIPANTS_TAB);
+  const data = sheet.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === id) {
+      sheet.deleteRow(i + 1);
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function getTracks1() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(TRACKS_TAB);
+  const data = sheet.getDataRange().getValues();
+  const tracks = [];
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0]) {
+      tracks.push(data[i][0]);
+    }
+  }
+  return tracks;
+}
+
+function getTracks() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(TRACKS_TAB);
+  const data = sheet.getDataRange().getValues();
+
+  const result = [];
+
+  for (let i = 1; i < data.length; i++) {
+    result.push({
+      id: data[i][0],
+      start: data[i][1] ? new Date(data[i][1]).toISOString() : ""
+    });
+  }
+
+  return result;
+}
+
+function updateTrackStart(trackId, startTime) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(TRACKS_TAB);
+  const data = sheet.getDataRange().getValues();
+
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === trackId) {
+      const row = i + 1;
+      sheet.getRange(row, 2).setValue(new Date(startTime));
+      return;
+    }
+  }
+}
+
+
+
+

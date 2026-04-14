@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin - Deltakere</title>
+  <style>
+    body {
+      font-family: system-ui;
+      margin: 0;
+      padding: 10px;
+      background: #f4f4f4;
+    }
+
+    h2 {
+      text-align: center;
+      margin-bottom: 10px;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 2fr 50px 1fr 30px 30px;  /* [name] [bib] [track] [save] [delete] */
+      gap: 5px;
+      background: white;
+      padding: 2px; /* before 6 */
+      margin-bottom: 2px;
+      border-radius: 6px;
+      align-items: center;
+    }
+    .row_track {
+      display: grid;
+      grid-template-columns: 1fr 60px 1fr;  /* [name] [starttime]  */
+      gap: 5px;
+      background: white;
+      padding: 2px; /* before 6 */
+      margin-bottom: 2px;
+      border-radius: 6px;
+      align-items: center;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 6px;
+      font-size: 14px;
+    }
+
+    button {
+      padding: 6px;
+      font-size: 14px;
+      border: none;
+      border-radius: 4px;
+    }
+
+    .save { background: #28a745; color: white; }
+    .delete { background: #dc3545; color: white; }
+
+    .saved {
+      background: #d4edda !important;
+      transition: background 0.3s;
+    }
+  </style>
+</head>
+
+<body>
+
+<h2>Løyper</h2>
+<div id="tracks"></div>
+
+<h2>Deltakere</h2>
+<div id="list">Laster...</div>
+
+<script>
+let tracks = [];
+let participants = [];
+
+function load() {
+  google.script.run
+    .withSuccessHandler(t => {
+      tracks = t;
+      google.script.run
+        .withSuccessHandler(data => {
+          participants = data;
+          renderTracks();     // NEW
+          render();           // existing participants
+        })
+        .withFailureHandler(err => {
+          console.error("getParticipants failed:", err);
+        })
+        .getParticipants();
+    })
+    .withFailureHandler(err => {
+      console.error("getTracks failed:", err);
+    })
+    .getTracks();
+}
+
+
+function render() {
+  const container = document.getElementById("list");
+
+  container.innerHTML = participants.map(p => `
+    <div class="row" id="row-${p.id}">
+      
+      <input value="${p.name}" id="name-${p.id}">
+      
+      <input value="${p.bib}" id="bib-${p.id}">
+
+      <select id="track-${p.id}">
+        ${tracks.map(t => `
+          <option value="${t.id}" ${t.id === p.track ? "selected" : ""}>
+            ${t.id}
+          </option>
+        `).join('')}
+      </select>
+
+      <button class="save" onclick="save('${p.id}')">💾</button>
+      <button class="delete" onclick="remove('${p.id}')">🗑</button>
+    </div>
+  `).join('');
+}
+
+function renderTracks() {
+  const container = document.getElementById("tracks");
+
+  container.innerHTML = tracks.map(t => `
+    <div class="row_track">
+      <div>${t.id}</div>
+      <button onclick="setNow('${t.id}')">Nå!</button>
+      <input 
+        type="time" 
+        id="start-${t.id}"
+        value="${t.start ? formatTimeInput(t.start) : ""}"
+      >
+    </div>
+  `).join('');
+  tracks.forEach(t => attachAutoSave(t.id));
+}
+
+function save(id) {
+  const name = document.getElementById(`name-${id}`).value;
+  const bib = document.getElementById(`bib-${id}`).value;
+  const track = document.getElementById(`track-${id}`).value;
+
+  google.script.run
+    .withSuccessHandler(() => {
+      const rowEl = document.getElementById(`row-${id}`);
+      rowEl.classList.add("saved");
+
+      setTimeout(() => rowEl.classList.remove("saved"), 800);
+    })
+    .updateParticipant(id, name, bib, track);
+}
+
+function remove(id) {
+  if (!confirm("Slette deltaker?")) return;
+
+  google.script.run
+    .withSuccessHandler(() => {
+      participants = participants.filter(p => p.id !== id);
+      render();
+    })
+    .deleteParticipant(id);
+}
+
+function formatTime(iso) {
+  const d = new Date(iso);
+
+  return d.toLocaleTimeString("nb-NO", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit" 
+  });
+}
+function formatTimeInput(iso) {
+  const d = new Date(iso);
+
+  return d.toLocaleTimeString("nb-NO", {
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+
+// save when track start time is selected
+function attachAutoSave(id) {
+  const el = document.getElementById(`start-${id}`);
+  if (!el) return;
+  el.addEventListener("change", () => {
+    delete el.dataset.seconds; // picker → 00 seconds
+    saveTrack(id);
+  });
+}
+
+function saveTrack(id) {
+  const el = document.getElementById(`start-${id}`);
+  const time = el.value;
+  if (!time) return;
+
+  const sec = el.dataset.seconds ?? "00";
+  const now = new Date();
+  const today =
+    now.getFullYear() + "-" +
+    String(now.getMonth() + 1).padStart(2, "0") + "-" +
+    String(now.getDate()).padStart(2, "0");
+
+  const fullDate = new Date(`${today}T${time}:${sec}`);
+
+  google.script.run
+    .withSuccessHandler(() => {
+      el.style.background = "#d4edda";
+      setTimeout(() => el.style.background = "", 800);
+    })
+    .updateTrackStart(id, fullDate.toISOString());
+}
+
+function setNow(id) {
+  const now = new Date();
+  const hh = String(now.getHours()).padStart(2, "0");
+  const mm = String(now.getMinutes()).padStart(2, "0");
+  const ss = String(now.getSeconds()).padStart(2, "0");
+  const el = document.getElementById(`start-${id}`);
+  el.value = `${hh}:${mm}`;
+  el.dataset.seconds = ss;
+  saveTrack(id);
+}
+
+// Auto-refresh every 10s (important for live updates)
+// setInterval(load, 10000);
+
+// Initial load
+load();
+</script>
+
+</body>
+</html>

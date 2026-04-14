@@ -103,7 +103,7 @@
     const id = Date.now() + "-" + Math.floor(Math.random()*1000);
 
     // UI Update
-    lastEntries.unshift({bib, time, id});
+    lastEntries.unshift({bib, time, id, saved: false});
     if (lastEntries.length > 5) lastEntries.pop();
     render();
 
@@ -114,19 +114,31 @@
     bibInput.focus();
 
     google.script.run
-      .withSuccessHandler(() => { document.getElementById('status').innerText = "Lagret " + bib; })
+      //.withSuccessHandler(() => { document.getElementById('status').innerText = "Lagret " + bib; })
+      .withSuccessHandler(() => {
+        const entry = lastEntries.find(e => e.id === id);
+        if (entry) entry.saved = true;
+        render();
+      })
       .submitBibWithId(bib, id);
   }
 
   function render() {
     const list = document.getElementById('lastEntries');
+
     list.innerHTML = lastEntries.map((e, idx) => `
-      <li>
-        <span><span class="bib-val">#${e.bib}</span> <small>${e.time}</small></span>
+      <li style="
+        background: ${e.saved ? '#d4edda' : 'white'};
+        transition: background 0.3s ease;
+        padding: 8px;
+        margin-bottom: 5px;
+        border-radius: 6px;
+      ">
+        <span><span class="bib-val">#${e.bib}</span><small>${e.time}</small></span>
         <button class="btn-del" onclick="removeEntry('${e.id}', ${idx})">ANGRE</button>
       </li>
     `).join('');
-  }
+  }  
 
   function removeEntry(id, index) {
     lastEntries.splice(index, 1);
