@@ -15,12 +15,14 @@ Akritektur:
 
 
 TODO:  
-- Auto save admin participants
 - Add admin page warning on same bib registered more than once
 - Add finish line warning if bib registered more than once
+
+- DONE Auto save admin participants
 - DONE - Results: show all participants also if they don't have a finish time (yet)
-- Add link from registration to results - and from results to registration
-- Implement hide name logic
+- DONE Add link from registration to results - and from results to registration
+- DONE Implement hide name logic
+- DONE Add highlighting of unsaved changes in admin participant list
 
 
 NOTE:  

@@ -18,7 +18,7 @@
 
     .row {
       display: grid;
-      grid-template-columns: 2fr 50px 1fr 30px 30px;  /* [name] [bib] [track] [save] [delete] */
+      grid-template-columns: 30px 2fr 50px 1fr 30px ;  /* [delete] [name] [bib] [track] [save]  */
       gap: 5px;
       background: white;
       padding: 2px; /* before 6 */
@@ -50,13 +50,12 @@
       border-radius: 4px;
     }
 
-    .save { background: #28a745; color: white; }
+    /*.save { background: #28a745; color: white; } */
+    .save { display: none;}
     .delete { background: #dc3545; color: white; }
 
-    .saved {
-      background: #d4edda !important;
-      transition: background 0.3s;
-    }
+    input.dirty, select.dirty { background: #fff3cd; }
+    .row.dirty .save {display: block; background: #28a745; }
   </style>
 </head>
 
@@ -80,7 +79,7 @@ function load() {
         .withSuccessHandler(data => {
           participants = data;
           renderTracks();     // NEW
-          render();           // existing participants
+          renderParticipants();           // existing participants
         })
         .withFailureHandler(err => {
           console.error("getParticipants failed:", err);
@@ -94,17 +93,18 @@ function load() {
 }
 
 
-function render() {
+function renderParticipants() {
   const container = document.getElementById("list");
 
   container.innerHTML = participants.map(p => `
     <div class="row" id="row-${p.id}">
       
-      <input value="${p.name}" id="name-${p.id}">
-      
-      <input value="${p.bib}" id="bib-${p.id}">
+      <button class="delete" onclick="removeParticipant('${p.id}')">🗑</button>
 
-      <select id="track-${p.id}">
+      <input value="${p.name}" id="name-${p.id}" data-original="${p.name}">
+      <input value="${p.bib}" id="bib-${p.id}" data-original="${p.bib}">
+
+      <select id="track-${p.id}" data-original="${p.track}">
         ${tracks.map(t => `
           <option value="${t.id}" ${t.id === p.track ? "selected" : ""}>
             ${t.id}
@@ -112,11 +112,70 @@ function render() {
         `).join('')}
       </select>
 
-      <button class="save" onclick="save('${p.id}')">💾</button>
-      <button class="delete" onclick="remove('${p.id}')">🗑</button>
+      <button class="save" onclick="saveParticipant('${p.id}')">💾</button>
     </div>
   `).join('');
+
+  participants.forEach(p => attachDirtyTracking(p.id));
 }
+
+function saveParticipant(id) {
+  const row = document.getElementById(`row-${id}`);
+  const nameEl = document.getElementById(`name-${id}`);
+  const bibEl = document.getElementById(`bib-${id}`);
+  const trackEl = document.getElementById(`track-${id}`);
+  const name = nameEl.value;
+  const bib = bibEl.value;
+  const track = trackEl.value;
+
+  google.script.run
+    .withSuccessHandler(() => {
+      row.classList.remove("dirty");
+      nameEl.classList.remove("dirty");
+      bibEl.classList.remove("dirty");      
+      trackEl.classList.remove("dirty");
+      nameEl.dataset.original = name;
+      bibEl.dataset.original = bib;
+      trackEl.dataset.original = track;
+    })
+    .updateParticipant(id, name, bib, track);
+}
+
+function removeParticipant(id) {
+  if (!confirm("Slette deltaker?")) return;
+
+  google.script.run
+    .withSuccessHandler(() => {
+      participants = participants.filter(p => p.id !== id);
+      renderParticipants();
+    })
+    .deleteParticipant(id);
+}
+
+function attachDirtyTracking(id) {
+  const row = document.getElementById(`row-${id}`);
+  const nameEl = document.getElementById(`name-${id}`);
+  const bibEl = document.getElementById(`bib-${id}`);
+  const trackEl = document.getElementById(`track-${id}`);
+
+  function checkDirty() {
+    const nameDirty = nameEl.value !== nameEl.dataset.original;
+    const bibDirty = bibEl.value !== bibEl.dataset.original;
+    const trackDirty = trackEl.value !== trackEl.dataset.original;
+    const isDirty = nameDirty || bibDirty || trackDirty;
+    row.classList.toggle("dirty", isDirty); // row state (controls save button visibility)
+    nameEl.classList.toggle("dirty", nameDirty);
+    bibEl.classList.toggle("dirty", bibDirty);
+    trackEl.classList.toggle("dirty", trackDirty);
+  }
+
+  nameEl.addEventListener("input", checkDirty);
+  bibEl.addEventListener("input", checkDirty);
+  trackEl.addEventListener("change", checkDirty);
+}
+
+
+/* TRACKS ====================================== */
 
 function renderTracks() {
   const container = document.getElementById("tracks");
@@ -135,31 +194,6 @@ function renderTracks() {
   tracks.forEach(t => attachAutoSave(t.id));
 }
 
-function save(id) {
-  const name = document.getElementById(`name-${id}`).value;
-  const bib = document.getElementById(`bib-${id}`).value;
-  const track = document.getElementById(`track-${id}`).value;
-
-  google.script.run
-    .withSuccessHandler(() => {
-      const rowEl = document.getElementById(`row-${id}`);
-      rowEl.classList.add("saved");
-
-      setTimeout(() => rowEl.classList.remove("saved"), 800);
-    })
-    .updateParticipant(id, name, bib, track);
-}
-
-function remove(id) {
-  if (!confirm("Slette deltaker?")) return;
-
-  google.script.run
-    .withSuccessHandler(() => {
-      participants = participants.filter(p => p.id !== id);
-      render();
-    })
-    .deleteParticipant(id);
-}
 
 function formatTime(iso) {
   const d = new Date(iso);
