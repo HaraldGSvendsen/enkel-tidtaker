@@ -28,7 +28,7 @@
     }
     .row_track {
       display: grid;
-      grid-template-columns: 1fr 60px 1fr;  /* [name] [starttime]  */
+      grid-template-columns: 1fr 1fr 50px 70px;  /* [name] [starttime] [now!] [select]  */
       gap: 5px;
       background: white;
       padding: 2px; /* before 6 */
@@ -78,8 +78,8 @@ function load() {
       google.script.run
         .withSuccessHandler(data => {
           participants = data;
-          renderTracks();     // NEW
-          renderParticipants();           // existing participants
+          renderTracks();     
+          renderParticipants(); 
         })
         .withFailureHandler(err => {
           console.error("getParticipants failed:", err);
@@ -120,23 +120,21 @@ function renderParticipants() {
 }
 
 function saveParticipant(id) {
-  const row = document.getElementById(`row-${id}`);
   const nameEl = document.getElementById(`name-${id}`);
   const bibEl = document.getElementById(`bib-${id}`);
   const trackEl = document.getElementById(`track-${id}`);
+
   const name = nameEl.value;
   const bib = bibEl.value;
   const track = trackEl.value;
 
   google.script.run
     .withSuccessHandler(() => {
-      row.classList.remove("dirty");
-      nameEl.classList.remove("dirty");
-      bibEl.classList.remove("dirty");      
-      trackEl.classList.remove("dirty");
+      const row = document.getElementById(`row-${id}`);
       nameEl.dataset.original = name;
       bibEl.dataset.original = bib;
       trackEl.dataset.original = track;
+      row._checkDirty(); // single source of truth
     })
     .updateParticipant(id, name, bib, track);
 }
@@ -163,7 +161,7 @@ function attachDirtyTracking(id) {
     const bibDirty = bibEl.value !== bibEl.dataset.original;
     const trackDirty = trackEl.value !== trackEl.dataset.original;
     const isDirty = nameDirty || bibDirty || trackDirty;
-    row.classList.toggle("dirty", isDirty); // row state (controls save button visibility)
+    row.classList.toggle("dirty", isDirty);
     nameEl.classList.toggle("dirty", nameDirty);
     bibEl.classList.toggle("dirty", bibDirty);
     trackEl.classList.toggle("dirty", trackDirty);
@@ -172,7 +170,11 @@ function attachDirtyTracking(id) {
   nameEl.addEventListener("input", checkDirty);
   bibEl.addEventListener("input", checkDirty);
   trackEl.addEventListener("change", checkDirty);
+
+  // expose it
+  row._checkDirty = checkDirty;
 }
+
 
 
 /* TRACKS ====================================== */
@@ -183,6 +185,7 @@ function renderTracks() {
   container.innerHTML = tracks.map(t => `
     <div class="row_track">
       <div>${t.id}</div>
+      <div id="start-s-${t.id}">${formatTimeHHMMSS(t.start)}</div>
       <button onclick="setNow('${t.id}')">Nå!</button>
       <input 
         type="time" 
@@ -195,7 +198,7 @@ function renderTracks() {
 }
 
 
-function formatTime(iso) {
+function formatTimeHHMMSS(iso) {
   const d = new Date(iso);
 
   return d.toLocaleTimeString("nb-NO", {
@@ -224,6 +227,7 @@ function attachAutoSave(id) {
   });
 }
 
+// save to spreadsheet
 function saveTrack(id) {
   const el = document.getElementById(`start-${id}`);
   const time = el.value;
@@ -237,6 +241,9 @@ function saveTrack(id) {
     String(now.getDate()).padStart(2, "0");
 
   const fullDate = new Date(`${today}T${time}:${sec}`);
+
+  const timeWithSec = document.getElementById(`start-s-${id}`);
+  timeWithSec.textContent = formatTimeHHMMSS(fullDate.toISOString());
 
   google.script.run
     .withSuccessHandler(() => {
